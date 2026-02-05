@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Be My Valentine?</title>
+
+<style>
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+body {
+  height: 100vh;
+  background: #ffe6ef;
+  overflow: hidden;
+}
+
+/* Falling hearts */
+.heart {
+  position: fixed;
+  top: -10px;
+  color: #ff6b9c;
+  animation: fall linear infinite;
+  opacity: 0.7;
+}
+
+@keyframes fall {
+  to {
+    transform: translateY(110vh);
+  }
+}
+
+/* Modal */
+.modal {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: #fff0f6;
+  padding: 24px;
+  width: 90%;
+  max-width: 320px;
+  border-radius: 16px;
+  text-align: center;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+  z-index: 10;
+  position: relative;
+}
+
+h1 {
+  font-size: 20px;
+  margin-bottom: 12px;
+}
+
+p {
+  font-size: 14px;
+  margin-bottom: 20px;
+}
+
+.buttons {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+}
+
+button {
+  padding: 10px 20px;
+  border-radius: 20px;
+  border: none;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+#yes {
+  background: #ff6b9c;
+  color: white;
+}
+
+#no {
+  background: #ffd1e1;
+  color: #444;
+  transition: all 0.3s ease;
+}
+
+</style>
+</head>
+
+<body>
+
+<div class="modal">
+  <h1>Will you be my Valentine? 💖</h1>
+  <p id="message">I promise snacks and good vibes.</p>
+  <div class="buttons">
+    <button id="yes">Yes</button>
+    <button id="no">No</button>
+  </div>
+</div>
+
+<script>
+/* Check if IP has already made a choice */
+fetch("/check-ip")
+  .then(res => res.json())
+  .then(data => {
+    if (data.hasChosen) {
+      // IP has already made a choice, show the result
+      const message = document.getElementById("message");
+      const buttons = document.querySelector(".buttons");
+      
+      if (data.choice.choice === "yes") {
+        message.innerText = data.choice.messageShown;
+      } else if (data.choice.choice === "no") {
+        message.innerText = data.choice.messageShown;
+      }
+      
+      buttons.style.display = "none";
+    } else {
+      // IP hasn't chosen yet, initialize the interactive experience
+      initializeApp();
+    }
+  });
+
+function initializeApp() {
+/* Hearts background */
+for (let i = 0; i < 20; i++) {
+  const h = document.createElement("div");
+  h.className = "heart";
+  h.textContent = "💗";
+  h.style.left = Math.random() * 100 + "vw";
+  h.style.fontSize = 12 + Math.random() * 20 + "px";
+  h.style.animationDuration = 5 + Math.random() * 5 + "s";
+  document.body.appendChild(h);
+}
+
+/* Timer */
+const startTime = Date.now();
+const elapsed = () => Math.floor((Date.now() - startTime) / 1000);
+
+const yesBtn = document.getElementById("yes");
+const noBtn = document.getElementById("no");
+const message = document.getElementById("message");
+
+let noCount = 0;
+
+/* Logging helper */
+function setMessageAndLog(choice, text, extra = {}) {
+  message.innerText = text;
+
+  fetch("/log", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      choice,
+      messageShown: text,
+      timeTaken: elapsed(),
+      timestamp: new Date().toISOString(),
+      ...extra
+    })
+  }).catch(() => {});
+}
+
+/* No button dodge */
+function dodge(e) {
+  if (noCount >= 4) return;
+
+  e.preventDefault();
+  noCount++;
+
+  fetch("/log", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      choice: "no_attempt",
+      messageShown: message.innerText,
+      attempt: noCount,
+      timeTaken: elapsed(),
+      timestamp: new Date().toISOString()
+    })
+  }).catch(() => {});
+
+  // Change to absolute positioning on first dodge (relative to modal)
+  if (noCount === 1) {
+    noBtn.style.position = "absolute";
+  }
+
+  const modal = document.querySelector(".modal");
+  const padding = 10;
+  const btnWidth = noBtn.offsetWidth;
+  const btnHeight = noBtn.offsetHeight;
+
+  const modalWidth = modal.offsetWidth;
+  const modalHeight = modal.offsetHeight;
+
+  const maxX = modalWidth - btnWidth - padding;
+  const maxY = modalHeight - btnHeight - padding;
+
+  const x = Math.max(padding, Math.random() * maxX);
+  const y = Math.max(padding, Math.random() * maxY);
+
+  noBtn.style.left = `${x}px`;
+  noBtn.style.top = `${y}px`;
+
+  /* After 4 dodges → allow click */
+  if (noCount === 4) {
+    noBtn.style.position = "relative";
+    noBtn.style.left = "0";
+    noBtn.style.top = "0";
+  }
+}
+
+
+noBtn.addEventListener("touchstart", dodge);
+noBtn.addEventListener("mousedown", dodge);
+noBtn.addEventListener("mouseenter", dodge);
+
+/* No click */
+noBtn.addEventListener("click", () => {
+  const msg = "Okay okay 😭 I respect your choice.";
+  setMessageAndLog("no", msg);
+  document.querySelector(".buttons").style.display = "none";
+});
+
+/* Yes click */
+yesBtn.addEventListener("click", () => {
+  const t = elapsed();
+  let msg;
+
+  if (t <= 3) msg = "It seems you were waiting for this moment too 😏";
+  else if (t <= 8) msg = "I knew you'd say yes 💕";
+  else if (t <= 15) msg = "Took you a while… but yay 🥰";
+  else msg = "Better late than never ❤️";
+
+  setMessageAndLog("yes", msg);
+  document.querySelector(".buttons").style.display = "none";
+});
+}
+</script>
+
+</body>
+</html>
